@@ -45,10 +45,13 @@ jobs:
       - name: Install Inno Setup
         run: choco install innosetup -y --no-progress
 
-      # КЛЮЧЕВОЕ: запускаем ISCC через cmd /c, чтобы избежать ошибок PowerShell
+      # КЛЮЧ: запускаем ISCC через PowerShell call-оператор (&) и явные аргументы
       - name: Build Installer (ISCC)
         working-directory: build_scripts
-        run: cmd /c "\"C:\Program Files (x86)\Inno Setup 6\ISCC.exe\" installer.iss"
+        run: |
+          $iscc = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+          if (!(Test-Path $iscc)) { throw "ISCC not found at $iscc" }
+          & $iscc 'installer.iss'
 
       - name: Upload Setup
         if: always()
