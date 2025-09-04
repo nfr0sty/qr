@@ -42,13 +42,15 @@ jobs:
           path: dist/QRMobile.exe
           if-no-files-found: error
 
-      # ВАЖНО: установщик собираем экшеном, без ручного вызова ISCC
-      - name: Build Installer (Inno Setup Action)
-        uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
-        with:
-          path: build_scripts/installer.iss
-          # опционально: дополнительные параметры ISCC, если нужны
-          # options: /O+
+      - name: Build Installer (ISCC) using PowerShell
+        working-directory: build_scripts
+        run: |
+          $ISCC = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $ISCC)) {
+              $ISCC = "C:\Progra~2\Inno Setup 6\ISCC.exe"
+          }
+          & "$ISCC" installer.iss
+        shell: powershell
 
       - name: Upload Setup
         if: always()
