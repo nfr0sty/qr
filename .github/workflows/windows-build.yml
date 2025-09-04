@@ -5,10 +5,6 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-    
-    defaults:
-      run:
-        shell: cmd # 🔥 весь job строго через CMD
 
     steps:
       - name: Checkout
