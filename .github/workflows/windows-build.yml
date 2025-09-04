@@ -50,10 +50,60 @@ jobs:
         run: |
           choco install innosetup -y --no-progress
 
-      - name: Build Installer (short path)
+      - name: Build Installer (robust ISCC)
         working-directory: build_scripts
+        shell: pwsh
         run: |
-              & 'C:\Progra~2\Inno Setup 6\ISCC.exe' 'installer.iss'
+          $ErrorActionPreference = 'Stop'
+      
+          # 1) Ищем ISCC в типовых путях
+          $cands = @(
+            'C:\Program Files (x86)\Inno Setup 6\ISCC.exe',
+            'C:\Program Files\Inno Setup 6\ISCC.exe'
+          )
+          $iscc = $cands | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { throw "ISCC not found. Tried: $($cands -join '; ')" }
+          Write-Host "Using ISCC: $iscc"
+      
+          # 2) Проверяем, что installer.iss существует
+          if (-not (Test-Path 'installer.iss')) { throw "installer.iss not found in $(Get-Location)" }
+      
+          # 3) Пытаемся тремя способами
+          $ok = $false
+      
+          try {
+            & $iscc 'installer.iss'
+            if ($LASTEXITCODE -ne 0) { throw "ExitCode $LASTEXITCODE" }
+            Write-Host "ISCC OK via pwsh call-operator (&)."
+            $ok = $true
+          } catch {
+            Write-Warning "ISCC via (&) failed: $($_.Exception.Message)"
+          }
+      
+          if (-not $ok) {
+            try {
+              $p = Start-Process -FilePath $iscc -ArgumentList 'installer.iss' -NoNewWindow -Wait -PassThru
+              if ($p.ExitCode -ne 0) { throw "ExitCode $($p.ExitCode)" }
+              Write-Host "ISCC OK via Start-Process."
+              $ok = $true
+            } catch {
+              Write-Warning "ISCC via Start-Process failed: $($_.Exception.Message)"
+            }
+          }
+      
+          if (-not $ok) {
+            try {
+              cmd /c "`"$iscc`" installer.iss"
+              if ($LASTEXITCODE -ne 0) { throw "ExitCode $LASTEXITCODE" }
+              Write-Host "ISCC OK via cmd /c."
+              $ok = $true
+            } catch {
+              Write-Error "ISCC via cmd /c failed: $($_.Exception.Message)"
+            }
+          }
+      
+          if (-not $ok) { throw "All ISCC invocation methods failed." }
+
 
       - name: Show Inno Output
         run: |
