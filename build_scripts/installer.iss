@@ -1,13 +1,14 @@
-; Inno Setup script for QRMobile
 #define MyAppName "QRMobile"
 #define MyAppExeName "QRMobile.exe"
+#define MyAppVersion "1.0.0"
 
 [Setup]
 AppName={#MyAppName}
-AppVersion=1.0
+AppVersion={#MyAppVersion}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 OutputBaseFilename=QRMobile-Setup
+OutputDir=Output
 Compression=lzma
 SolidCompression=yes
 
