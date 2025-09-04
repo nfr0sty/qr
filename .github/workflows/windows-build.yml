@@ -50,9 +50,10 @@ jobs:
         run: |
           choco install innosetup -y --no-progress
 
-      - name: Build Installer (cmd /c)
+      - name: Build Installer (short path)
         working-directory: build_scripts
-        run: cmd /c "\"C:\Program Files (x86)\Inno Setup 6\ISCC.exe\" installer.iss"
+        run: |
+              & 'C:\Progra~2\Inno Setup 6\ISCC.exe' 'installer.iss'
 
       - name: Show Inno Output
         run: |
