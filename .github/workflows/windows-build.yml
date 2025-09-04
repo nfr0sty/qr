@@ -60,7 +60,9 @@ jobs:
 
       - name: Build Installer (ISCC)
         working-directory: build_scripts
-        run: '"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss'
+        shell: cmd
+        run: |
+          "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
 
       - name: Show Inno Output
         run: |
