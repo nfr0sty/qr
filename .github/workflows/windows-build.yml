@@ -1,16 +1,19 @@
 name: windows-build
-on: { workflow_dispatch: {} }
+on:
+  workflow_dispatch: {}
 
 jobs:
   build:
     runs-on: windows-latest
-    defaults: { run: { shell: pwsh } }
+    defaults:
+      run:
+        shell: pwsh
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Печатаем сам workflow-файл, который сейчас в репо
+      # Печатаем содержимое текущего workflow-файла для контроля
       - name: Sanity: print workflow file
         run: |
           Write-Host "----- .github/workflows/windows-build.yml -----"
@@ -23,7 +26,8 @@ jobs:
 
       - name: Setup Python 3.11
         uses: actions/setup-python@v5
-        with: { python-version: '3.11' }
+        with:
+          python-version: '3.11'
 
       - name: Install deps
         run: |
@@ -31,12 +35,13 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
+      # Полная очистка и удаление любых .spec и иконок, чтобы исключить их влияние
       - name: Clean spec/build/dist and any icons
         run: |
           Remove-Item -Recurse -Force -ErrorAction SilentlyContinue *.spec, build, dist, buildspec
           Remove-Item -Force -ErrorAction SilentlyContinue assets/icon.png, assets/icon.ico
 
-      # ВАЖНО: НИКАКИХ --icon и --add-data
+      # Сборка БЕЗ иконки и БЕЗ add-data
       - name: Build EXE (no icon)
         run: >
           pyinstaller --noconsole --onefile --clean
