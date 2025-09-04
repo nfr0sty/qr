@@ -5,9 +5,6 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-    defaults:
-      run:
-        shell: pwsh
 
     steps:
       - name: Checkout
@@ -19,21 +16,24 @@ jobs:
           python-version: '3.11'
 
       - name: Install deps
+        shell: cmd
         run: |
           python -m pip install --upgrade pip wheel
           python -m pip install -r requirements.txt
           python -m pip install pyinstaller
 
-      - name: Clean old spec/build/dist
+      - name: Clean
+        shell: cmd
         run: |
-          Remove-Item -Recurse -Force -ErrorAction SilentlyContinue *.spec, build, dist, buildspec
+          if exist build rmdir /s /q build
+          if exist dist rmdir /s /q dist
+          if exist buildspec rmdir /s /q buildspec
+          del /f /q *.spec 2>nul
 
       - name: Build EXE (no icon)
-        run: >
-          pyinstaller --noconsole --onefile --clean
-          --specpath buildspec
-          --name "QRMobile"
-          "app\app_gui.py"
+        shell: cmd
+        run: |
+          pyinstaller --noconsole --onefile --clean --specpath buildspec --name "QRMobile" app\app_gui.py
 
       - name: Upload EXE
         uses: actions/upload-artifact@v4
@@ -42,64 +42,18 @@ jobs:
           path: dist/QRMobile.exe
           if-no-files-found: error
 
-      - name: Install Inno Setup
-        run: choco install innosetup -y --no-progress
-
-      # === КЛЮЧЕВОЕ: создаём .ps1 и запускаем его ===
-      - name: Write ISCC invoker script
-        working-directory: build_scripts
-        run: |
-          @'
-          param(
-            [string]$Iss = "installer.iss"
-          )
-          $ErrorActionPreference = "Stop"
-          $paths = @(
-            "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
-            "C:\Program Files\Inno Setup 6\ISCC.exe"
-          )
-          $iscc = $paths | Where-Object { Test-Path $_ } | Select-Object -First 1
-          if (-not $iscc) { throw "ISCC not found. Tried: $($paths -join '; ')" }
-          if (-not (Test-Path $Iss)) { throw "ISS not found: $Iss in $(Get-Location)" }
-
-          # Способ 1: PowerShell call-operator
-          try {
-            & $iscc $Iss
-            if ($LASTEXITCODE -ne 0) { throw "ExitCode $LASTEXITCODE" }
-            exit 0
-          } catch {
-            Write-Warning "ISCC via (&) failed: $($_.Exception.Message)"
-          }
-
-          # Способ 2: Start-Process
-          try {
-            $p = Start-Process -FilePath $iscc -ArgumentList $Iss -NoNewWindow -Wait -PassThru
-            if ($p.ExitCode -ne 0) { throw "ExitCode $($p.ExitCode)" }
-            exit 0
-          } catch {
-            Write-Warning "ISCC via Start-Process failed: $($_.Exception.Message)"
-          }
-
-          # Способ 3: cmd /c
-          try {
-            cmd /c "`"$iscc`" $Iss"
-            if ($LASTEXITCODE -ne 0) { throw "ExitCode $LASTEXITCODE" }
-            exit 0
-          } catch {
-            Write-Error "ISCC via cmd /c failed: $($_.Exception.Message)"
-            exit 1
-          }
-          '@ | Out-File -FilePath invoke_iscc.ps1 -Encoding UTF8
-
-      - name: Build Installer (run invoker)
-        working-directory: build_scripts
-        run: |
-          pwsh -NoProfile -File .\invoke_iscc.ps1 -Iss "installer.iss"
+      # ВАЖНО: установщик собираем экшеном, без ручного вызова ISCC
+      - name: Build Installer (Inno Setup Action)
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
+        with:
+          path: build_scripts/installer.iss
+          # опционально: дополнительные параметры ISCC, если нужны
+          # options: /O+
 
       - name: Upload Setup
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: QRMobile-Setup
-          path: build_scripts\Output\QRMobile-Setup.exe
+          path: build_scripts/Output/QRMobile-Setup.exe
           if-no-files-found: warn
