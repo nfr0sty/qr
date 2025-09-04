@@ -13,11 +13,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Sanity: print workflow file
-        run: |
-          Write-Host "----- .github/workflows/windows-build.yml -----"
-          Get-Content .github/workflows/windows-build.yml
-
       - name: Show repo tree (depth=2)
         run: |
           Write-Host "CWD:" (Get-Location).Path
@@ -34,10 +29,9 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      - name: Clean spec/build/dist and any icons
+      - name: Clean old spec/build/dist
         run: |
           Remove-Item -Recurse -Force -ErrorAction SilentlyContinue *.spec, build, dist, buildspec
-          Remove-Item -Force -ErrorAction SilentlyContinue assets/icon.png, assets/icon.ico
 
       - name: Build EXE (no icon)
         run: >
