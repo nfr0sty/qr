@@ -8,7 +8,6 @@
 - `build_scripts/build_macos.sh` — сборка `.app` и `.dmg` на macOS.
 - `build_scripts/build_windows.bat` — сборка `.exe` (onefile) на Windows.
 - `build_scripts/installer.iss` — скрипт Inno Setup для создания установщика под Windows (опционально).
-
 ## Как пользоваться (быстро)
 Если вы просто хотите **запустить у себя** без упаковки в инсталлятор:
 ```bash
