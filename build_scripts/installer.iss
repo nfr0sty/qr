@@ -13,7 +13,6 @@ Compression=lzma
 SolidCompression=yes
 
 [Files]
-; Берём exe, который PyInstaller кладёт в ..\dist\QRMobile.exe
 Source: "..\dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
