@@ -13,7 +13,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Печатаем содержимое текущего workflow-файла для контроля
       - name: Sanity: print workflow file
         run: |
           Write-Host "----- .github/workflows/windows-build.yml -----"
@@ -35,47 +34,9 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      # Полная очистка и удаление любых .spec и иконок, чтобы исключить их влияние
       - name: Clean spec/build/dist and any icons
         run: |
           Remove-Item -Recurse -Force -ErrorAction SilentlyContinue *.spec, build, dist, buildspec
           Remove-Item -Force -ErrorAction SilentlyContinue assets/icon.png, assets/icon.ico
 
-      # Сборка БЕЗ иконки и БЕЗ add-data
       - name: Build EXE (no icon)
-        run: >
-          pyinstaller --noconsole --onefile --clean
-          --specpath buildspec
-          --name "QRMobile"
-          "app\app_gui.py"
-
-      - name: Show dist contents
-        run: |
-          if (Test-Path dist) { Get-ChildItem dist -Recurse | Select-Object FullName } else { Write-Host "dist not found" }
-
-      - name: Upload EXE
-        uses: actions/upload-artifact@v4
-        with:
-          name: QRMobile-exe
-          path: dist/QRMobile.exe
-          if-no-files-found: error
-
-      - name: Install Inno Setup
-        run: choco install innosetup -y --no-progress
-
-      - name: Build Installer (ISCC)
-        working-directory: build_scripts
-        run: '"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss'
-
-      - name: Show Inno Output
-        run: |
-          if (Test-Path build_scripts\Output) { Get-ChildItem build_scripts\Output -Recurse | Select-Object FullName } else { Write-Host "build_scripts\\Output not found" }
-
-      - name: Upload Setup
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: QRMobile-Setup
-          path: build_scripts\Output\QRMobile-Setup.exe
-          if-no-files-found: warn
-
