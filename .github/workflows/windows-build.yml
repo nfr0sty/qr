@@ -73,3 +73,4 @@ jobs:
           name: QRMobile-Setup
           path: build_scripts\Output\QRMobile-Setup.exe
           if-no-files-found: warn
+
