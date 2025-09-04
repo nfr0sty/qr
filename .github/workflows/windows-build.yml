@@ -7,7 +7,7 @@ jobs:
     runs-on: windows-latest
     defaults:
       run:
-        shell: cmd
+        shell: pwsh
 
     steps:
       - name: Checkout
@@ -26,18 +26,14 @@ jobs:
 
       - name: Clean old spec/build/dist
         run: |
-          if exist build rmdir /s /q build
-          if exist dist rmdir /s /q dist
-          if exist buildspec rmdir /s /q buildspec
-          del /f /q *.spec 2>nul
+          Remove-Item -Recurse -Force -ErrorAction SilentlyContinue *.spec, build, dist, buildspec
 
       - name: Build EXE (no icon)
-        run: |
-          pyinstaller --noconsole --onefile --clean --specpath buildspec --name "QRMobile" app\app_gui.py
-
-      - name: Show dist contents
-        run: |
-          if exist dist (dir dist /s) else (echo dist not found)
+        run: >
+          pyinstaller --noconsole --onefile --clean
+          --specpath buildspec
+          --name "QRMobile"
+          "app\app_gui.py"
 
       - name: Upload EXE
         uses: actions/upload-artifact@v4
@@ -47,67 +43,58 @@ jobs:
           if-no-files-found: error
 
       - name: Install Inno Setup
-        run: |
-          choco install innosetup -y --no-progress
+        run: choco install innosetup -y --no-progress
 
-      - name: Build Installer (robust ISCC)
+      # === КЛЮЧЕВОЕ: создаём .ps1 и запускаем его ===
+      - name: Write ISCC invoker script
         working-directory: build_scripts
-        shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-      
-          # 1) Ищем ISCC в типовых путях
-          $cands = @(
-            'C:\Program Files (x86)\Inno Setup 6\ISCC.exe',
-            'C:\Program Files\Inno Setup 6\ISCC.exe'
+          @'
+          param(
+            [string]$Iss = "installer.iss"
           )
-          $iscc = $cands | Where-Object { Test-Path $_ } | Select-Object -First 1
-          if (-not $iscc) { throw "ISCC not found. Tried: $($cands -join '; ')" }
-          Write-Host "Using ISCC: $iscc"
-      
-          # 2) Проверяем, что installer.iss существует
-          if (-not (Test-Path 'installer.iss')) { throw "installer.iss not found in $(Get-Location)" }
-      
-          # 3) Пытаемся тремя способами
-          $ok = $false
-      
+          $ErrorActionPreference = "Stop"
+          $paths = @(
+            "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+            "C:\Program Files\Inno Setup 6\ISCC.exe"
+          )
+          $iscc = $paths | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { throw "ISCC not found. Tried: $($paths -join '; ')" }
+          if (-not (Test-Path $Iss)) { throw "ISS not found: $Iss in $(Get-Location)" }
+
+          # Способ 1: PowerShell call-operator
           try {
-            & $iscc 'installer.iss'
+            & $iscc $Iss
             if ($LASTEXITCODE -ne 0) { throw "ExitCode $LASTEXITCODE" }
-            Write-Host "ISCC OK via pwsh call-operator (&)."
-            $ok = $true
+            exit 0
           } catch {
             Write-Warning "ISCC via (&) failed: $($_.Exception.Message)"
           }
-      
-          if (-not $ok) {
-            try {
-              $p = Start-Process -FilePath $iscc -ArgumentList 'installer.iss' -NoNewWindow -Wait -PassThru
-              if ($p.ExitCode -ne 0) { throw "ExitCode $($p.ExitCode)" }
-              Write-Host "ISCC OK via Start-Process."
-              $ok = $true
-            } catch {
-              Write-Warning "ISCC via Start-Process failed: $($_.Exception.Message)"
-            }
-          }
-      
-          if (-not $ok) {
-            try {
-              cmd /c "`"$iscc`" installer.iss"
-              if ($LASTEXITCODE -ne 0) { throw "ExitCode $LASTEXITCODE" }
-              Write-Host "ISCC OK via cmd /c."
-              $ok = $true
-            } catch {
-              Write-Error "ISCC via cmd /c failed: $($_.Exception.Message)"
-            }
-          }
-      
-          if (-not $ok) { throw "All ISCC invocation methods failed." }
 
+          # Способ 2: Start-Process
+          try {
+            $p = Start-Process -FilePath $iscc -ArgumentList $Iss -NoNewWindow -Wait -PassThru
+            if ($p.ExitCode -ne 0) { throw "ExitCode $($p.ExitCode)" }
+            exit 0
+          } catch {
+            Write-Warning "ISCC via Start-Process failed: $($_.Exception.Message)"
+          }
 
-      - name: Show Inno Output
+          # Способ 3: cmd /c
+          try {
+            cmd /c "`"$iscc`" $Iss"
+            if ($LASTEXITCODE -ne 0) { throw "ExitCode $LASTEXITCODE" }
+            exit 0
+          } catch {
+            Write-Error "ISCC via cmd /c failed: $($_.Exception.Message)"
+            exit 1
+          }
+          '@ | Out-File -FilePath invoke_iscc.ps1 -Encoding UTF8
+
+      - name: Build Installer (run invoker)
+        working-directory: build_scripts
         run: |
-          if exist build_scripts\Output (dir build_scripts\Output /s) else (echo build_scripts\Output not found)
+          pwsh -NoProfile -File .\invoke_iscc.ps1 -Iss "installer.iss"
 
       - name: Upload Setup
         if: always()
