@@ -7,29 +7,11 @@ jobs:
     runs-on: windows-latest
     defaults:
       run:
-        shell: cmd   # весь job строго через CMD
+        shell: cmd
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      # Гвард: если где-то остался старый шаг с ISCC/installer.iss — сразу валим
-      - name: Assert no leftover ISCC calls
-        run: |
-          if exist .github\workflows (
-            echo === Listing .github\workflows ===
-            dir /b .github\workflows
-            echo === Grep for ISCC.exe ===
-            findstr /S /N /I /C:"ISCC.exe" .github\workflows\*.yml && (echo ERROR: legacy ISCC call found & exit /b 1) || echo OK
-            echo === Grep for installer.iss ===
-            findstr /S /N /I /C:"installer.iss" .github\workflows\*.yml && (echo ERROR: legacy installer.iss call found & exit /b 1) || echo OK
-          )
-
-      - name: Echo shell (must be CMD)
-        run: echo SHELL=%COMSPEC%
-
-      - name: Setup Python 3.11
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -50,35 +32,9 @@ jobs:
         run: |
           pyinstaller --noconsole --onefile --clean --specpath buildspec --name "QRMobile" app\app_gui.py
 
-      - name: Show dist contents
-        run: |
-          if exist dist (dir dist /s) else (echo dist not found)
-
-      - name: Upload EXE (portable)
+      - name: Upload EXE
         uses: actions/upload-artifact@v4
         with:
           name: QRMobile-exe
           path: dist/QRMobile.exe
           if-no-files-found: error
-
-      # ===== NSIS вместо Inno Setup =====
-      - name: Install NSIS
-        run: choco install nsis -y --no-progress
-
-      - name: Build Installer (NSIS)
-        working-directory: build_scripts
-        run: |
-          if not exist Output mkdir Output
-          "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
-
-      - name: Show NSIS Output
-        run: |
-          if exist build_scripts\Output (dir build_scripts\Output /s) else (echo build_scripts\Output not found)
-
-      - name: Upload Setup (NSIS)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: QRMobile-Setup
-          path: build_scripts\Output\QRMobile-Setup.exe
-          if-no-files-found: warn
