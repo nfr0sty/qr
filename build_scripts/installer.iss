@@ -1,23 +1,29 @@
-#define MyAppName "QRMobile"
-#define MyAppExeName "QRMobile.exe"
-#define MyAppVersion "1.0.0"
+!define APPNAME "QRMobile"
+!define EXENAME "QRMobile.exe"
+!define APPDIR "$PROGRAMFILES64\${APPNAME}"
 
-[Setup]
-AppName={#MyAppName}
-AppVersion={#MyAppVersion}
-DefaultDirName={autopf}\{#MyAppName}
-DefaultGroupName={#MyAppName}
-OutputBaseFilename=QRMobile-Setup
-OutputDir=Output
-Compression=lzma
-SolidCompression=yes
+Name "${APPNAME}"
+OutFile "Output\QRMobile-Setup.exe"
+InstallDir "${APPDIR}"
+RequestExecutionLevel admin
 
-[Files]
-Source: "..\dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Page Directory
+Page InstFiles
+UninstPage uninstConfirm
+UninstPage instFiles
 
-[Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{userdesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+Section "Install"
+  SetOutPath "${APPDIR}"
+  File "..\dist\${EXENAME}"
+  CreateDirectory "$SMPROGRAMS\${APPNAME}"
+  CreateShortCut "$SMPROGRAMS\${APPNAME}\${APPNAME}.lnk" "${APPDIR}\${EXENAME}"
+  CreateShortCut "$DESKTOP\${APPNAME}.lnk" "${APPDIR}\${EXENAME}"
+SectionEnd
 
-[Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "Запустить {#MyAppName}"; Flags: nowait postinstall skipifsilent
+Section "Uninstall"
+  Delete "$SMPROGRAMS\${APPNAME}\${APPNAME}.lnk"
+  RMDir  "$SMPROGRAMS\${APPNAME}"
+  Delete "$DESKTOP\${APPNAME}.lnk"
+  Delete "${APPDIR}\${EXENAME}"
+  RMDir  "${APPDIR}"
+SectionEnd
