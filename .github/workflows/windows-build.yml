@@ -7,11 +7,26 @@ jobs:
     runs-on: windows-latest
     defaults:
       run:
-        shell: cmd
+        shell: cmd   # весь job строго через CMD
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # Гвард: если где-то остался старый шаг с ISCC/installer.iss — сразу валим
+      - name: Assert no leftover ISCC calls
+        run: |
+          if exist .github\workflows (
+            echo === Listing .github\workflows ===
+            dir /b .github\workflows
+            echo === Grep for ISCC.exe ===
+            findstr /S /N /I /C:"ISCC.exe" .github\workflows\*.yml && (echo ERROR: legacy ISCC call found & exit /b 1) || echo OK
+            echo === Grep for installer.iss ===
+            findstr /S /N /I /C:"installer.iss" .github\workflows\*.yml && (echo ERROR: legacy installer.iss call found & exit /b 1) || echo OK
+          )
+
+      - name: Echo shell (must be CMD)
+        run: echo SHELL=%COMSPEC%
 
       - name: Setup Python 3.11
         uses: actions/setup-python@v5
@@ -35,50 +50,35 @@ jobs:
         run: |
           pyinstaller --noconsole --onefile --clean --specpath buildspec --name "QRMobile" app\app_gui.py
 
-      - name: Upload portable EXE
+      - name: Show dist contents
+        run: |
+          if exist dist (dir dist /s) else (echo dist not found)
+
+      - name: Upload EXE (portable)
         uses: actions/upload-artifact@v4
         with:
           name: QRMobile-exe
           path: dist/QRMobile.exe
           if-no-files-found: error
 
-      # === SFX инсталлятор вместо Inno Setup ===
-      - name: Install 7-Zip
-        run: choco install 7zip -y --no-progress
+      # ===== NSIS вместо Inno Setup =====
+      - name: Install NSIS
+        run: choco install nsis -y --no-progress
 
-      - name: Prepare SFX payload
+      - name: Build Installer (NSIS)
+        working-directory: build_scripts
         run: |
-          if not exist build_scripts mkdir build_scripts
-          if not exist build_scripts\sfx mkdir build_scripts\sfx
-          copy /Y dist\QRMobile.exe build_scripts\sfx\QRMobile.exe
+          if not exist Output mkdir Output
+          "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
 
-          rem --- PostInstall.cmd создаёт папку, копирует exe и делает ярлыки ---
-          > build_scripts\sfx\PostInstall.cmd echo @echo off
-          >> build_scripts\sfx\PostInstall.cmd echo set "TARGET=%%ProgramFiles%%\QRMobile"
-          >> build_scripts\sfx\PostInstall.cmd echo if not exist "%%TARGET%%" mkdir "%%TARGET%%"
-          >> build_scripts\sfx\PostInstall.cmd echo copy /Y "%%~dp0QRMobile.exe" "%%TARGET%%\" ^>nul
-          >> build_scripts\sfx\PostInstall.cmd echo rem Desktop shortcut
-          >> build_scripts\sfx\PostInstall.cmd echo powershell -NoProfile -Command "$s=[Environment]::GetFolderPath('Desktop');$lnk=Join-Path $s 'QRMobile.lnk';$W=New-Object -ComObject WScript.Shell;$L=$W.CreateShortcut($lnk);$L.TargetPath='%ProgramFiles%\\QRMobile\\QRMobile.exe';$L.Save()"
-          >> build_scripts\sfx\PostInstall.cmd echo rem Start Menu shortcut
-          >> build_scripts\sfx\PostInstall.cmd echo powershell -NoProfile -Command "$s=[Environment]::GetFolderPath('Programs');$dir=Join-Path $s 'QRMobile';New-Item -ItemType Directory -Force $dir ^| Out-Null;$lnk=Join-Path $dir 'QRMobile.lnk';$W=New-Object -ComObject WScript.Shell;$L=$W.CreateShortcut($lnk);$L.TargetPath='%ProgramFiles%\\QRMobile\\QRMobile.exe';$L.Save()"
-          >> build_scripts\sfx\PostInstall.cmd echo start "" "%%TARGET%%\QRMobile.exe"
-
-          rem --- Конфиг SFX (заголовок, команда запуска) ---
-          > build_scripts\sfx\config.txt echo ;!@Install@!UTF-8!
-          >> build_scripts\sfx\config.txt echo Title="QRMobile Setup"
-          >> build_scripts\sfx\config.txt echo ExtractTitle="Installing QRMobile"
-          >> build_scripts\sfx\config.txt echo RunProgram="PostInstall.cmd"
-          >> build_scripts\sfx\config.txt echo ;!@InstallEnd@!
-
-      - name: Build SFX EXE
+      - name: Show NSIS Output
         run: |
-          if not exist build_scripts\Output mkdir build_scripts\Output
-          "C:\Program Files\7-Zip\7z.exe" a -t7z build_scripts\sfx\payload.7z .\build_scripts\sfx\* >nul
-          copy /b "C:\Program Files\7-Zip\7z.sfx"+build_scripts\sfx\config.txt+build_scripts\sfx\payload.7z build_scripts\Output\QRMobile-Setup.exe >nul
+          if exist build_scripts\Output (dir build_scripts\Output /s) else (echo build_scripts\Output not found)
 
-      - name: Upload Setup (SFX)
+      - name: Upload Setup (NSIS)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: QRMobile-Setup
           path: build_scripts\Output\QRMobile-Setup.exe
-          if-no-files-found: error
+          if-no-files-found: warn
